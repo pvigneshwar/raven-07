@@ -139,6 +139,6 @@ raven-07/
 
 ## Credits
 
-- **Game Design & Development:** Claude Code
+- **Game Design & Development:** Claude, ChatGPT, Codex.
 - **Game Engine:** Phaser 3.90.0
 - **Runtime:** TypeScript + Vite
