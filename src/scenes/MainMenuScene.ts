@@ -109,8 +109,9 @@ export class MainMenuScene extends Phaser.Scene {
     this.submenuText.setDepth(12);
     this.submenuText.setVisible(false);
     this.submenuText.setInteractive({ useHandCursor: true });
-    this.submenuText.on('pointerdown', () => {
-      this.hideSubmenu();
+    this.submenuText.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
+      if (this.settingsVisible) this.handleSettingsTap(pointer);
+      else this.hideSubmenu();
     });
 
     // Instructions
@@ -285,9 +286,33 @@ export class MainMenuScene extends Phaser.Scene {
       `VIBRATION      [${settings.controllerVibration ? 'ON' : 'OFF'}]`,
       'BACK',
     ];
+    const help = this.isTouchDevice()
+      ? 'TAP a row • tap left/right to adjust • tap BACK to close'
+      : 'ARROWS adjust/select  ENTER confirm  ESC back';
     this.submenuText.setText(['SETTINGS', '', ...rows.map((row, index) =>
       `${index === this.settingsIndex ? '>' : ' '} ${row}`), '',
-      'ARROWS adjust/select  ENTER confirm  ESC back'].join('\n'));
+      help].join('\n'));
+  }
+
+  private handleSettingsTap(pointer: Phaser.Input.Pointer): void {
+    const bounds = this.submenuText.getBounds();
+    const lineCount = this.submenuText.text.split('\n').length;
+    const lineHeight = bounds.height / lineCount;
+    const row = Math.floor((pointer.y - bounds.top) / lineHeight) - 2;
+    if (row < 0 || row > 11) return;
+    this.settingsIndex = row;
+
+    // Slider and stepped-value rows use the tapped half as decrement/increment.
+    if ([0, 1, 2, 4, 7, 8].includes(row)) {
+      this.adjustSetting(pointer.x < this.cameras.main.centerX ? -0.1 : 0.1);
+    } else {
+      this.confirmSetting();
+    }
+    this.renderSettings();
+  }
+
+  private isTouchDevice(): boolean {
+    return navigator.maxTouchPoints > 0 || window.matchMedia?.('(pointer: coarse)').matches === true;
   }
 
   private adjustSetting(delta: number): void {

@@ -9,6 +9,9 @@ test.use({
 test('mobile twin-stick controls support movement, aim/fire, and jump', async ({ page }) => {
   await page.goto('/');
   await page.waitForSelector('canvas');
+  const canvas = await page.locator('canvas').boundingBox();
+  expect(canvas?.height).toBeGreaterThanOrEqual(380);
+  expect(canvas?.width).toBeGreaterThanOrEqual(675);
   await page.keyboard.press('Enter');
 
   await expect.poll(async () => page.evaluate(() => {
@@ -57,4 +60,39 @@ test('mobile twin-stick controls support movement, aim/fire, and jump', async ({
   expect(states.direction.x).toBeGreaterThan(0.6);
   expect(states.direction.y).toBeLessThan(-0.6);
   expect(states.jumping.jump).toBe(true);
+});
+
+test('mobile settings rows respond to taps', async ({ page }) => {
+  await page.goto('/');
+  await page.waitForSelector('canvas');
+  await expect.poll(async () => page.evaluate(() => {
+    const game = (window as unknown as { raven07?: { scene: Phaser.Scenes.SceneManager } }).raven07;
+    return game?.scene.isActive('MainMenuScene') === true;
+  })).toBe(true);
+
+  const changed = await page.evaluate(() => {
+    type MenuScene = Phaser.Scene & {
+      menuOptions: string[];
+      selectedIndex: number;
+      select: () => void;
+      settingsVisible: boolean;
+      settingsIndex: number;
+      submenuText: Phaser.GameObjects.Text;
+      handleSettingsTap: (pointer: { x: number; y: number }) => void;
+      cameras: Phaser.Cameras.Scene2D.CameraManager;
+    };
+    const game = (window as unknown as { raven07: { scene: Phaser.Scenes.SceneManager } }).raven07;
+    const scene = game.scene.getScene('MainMenuScene') as MenuScene;
+    scene.selectedIndex = scene.menuOptions.indexOf('SETTINGS');
+    scene.select();
+    const wasOpen = scene.settingsVisible;
+    const bounds = scene.submenuText.getBounds();
+    const lineHeight = bounds.height / scene.submenuText.text.split('\n').length;
+    scene.handleSettingsTap({ x: scene.cameras.main.centerX, y: bounds.top + lineHeight * 7.5 });
+    return { wasOpen, stayedOpen: scene.settingsVisible, selectedRow: scene.settingsIndex };
+  });
+
+  expect(changed.wasOpen).toBe(true);
+  expect(changed.stayedOpen).toBe(true);
+  expect(changed.selectedRow).toBe(5);
 });

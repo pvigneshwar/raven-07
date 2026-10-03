@@ -15,7 +15,7 @@ type Stick = {
   pointerId: number | null;
   origin: Phaser.Math.Vector2;
   value: Phaser.Math.Vector2;
-  thumb: Phaser.GameObjects.Arc;
+  thumb: Phaser.GameObjects.Container;
 };
 
 /** Mobile-only twin-stick controls. The right stick fires while it is held. */
@@ -76,13 +76,14 @@ export class TouchControls {
     const aimBase = this.createStickBase(aimOrigin.x, aimOrigin.y, 0xff6b8a, 'AIM');
     const moveThumb = this.createThumb(moveOrigin.x, moveOrigin.y, 0x62e9ff);
     const aimThumb = this.createThumb(aimOrigin.x, aimOrigin.y, 0xff6b8a);
-    this.jumpButton = scene.add.circle(500, 213, 27, 0xffc857, 0.26)
-      .setStrokeStyle(2, 0xffe29a, 0.78).setScrollFactor(0);
+    const jumpTexture = this.createButtonTexture(500, 213, 0xffc857);
+    this.jumpButton = scene.add.circle(500, 213, 25, 0x513f16, 0.72)
+      .setStrokeStyle(2, 0xffe29a, 0.9).setScrollFactor(0);
     const jumpLabel = scene.add.text(500, 213, 'JUMP', {
       fontFamily: 'RavenMono, monospace', fontSize: '9px', color: '#fff1c7',
     }).setOrigin(0.5).setScrollFactor(0);
     this.root = scene.add.container(0, 0, [
-      ...moveBase, ...aimBase, moveThumb, aimThumb, this.jumpButton, jumpLabel,
+      ...moveBase, ...aimBase, moveThumb, aimThumb, jumpTexture, this.jumpButton, jumpLabel,
     ]).setDepth(10_000).setScrollFactor(0).setName('touch-controls');
     this.moveStick = { pointerId: null, origin: moveOrigin, value: new Phaser.Math.Vector2(), thumb: moveThumb };
     this.aimStick = { pointerId: null, origin: aimOrigin, value: new Phaser.Math.Vector2(), thumb: aimThumb };
@@ -137,19 +138,54 @@ export class TouchControls {
   }
 
   private createStickBase(x: number, y: number, color: number, label: string): Phaser.GameObjects.GameObject[] {
-    const outer = this.scene.add.circle(x, y, this.activationRadius, 0x08131b, 0.34)
-      .setStrokeStyle(2, color, 0.42).setScrollFactor(0);
-    const inner = this.scene.add.circle(x, y, this.radius, color, 0.08)
-      .setStrokeStyle(1, color, 0.25).setScrollFactor(0);
+    const plate = this.scene.add.graphics().setScrollFactor(0);
+    plate.fillStyle(0x02070b, 0.64).fillCircle(x, y, this.activationRadius);
+    plate.fillStyle(color, 0.07).fillCircle(x, y, this.radius + 6);
+    plate.lineStyle(2, color, 0.64).strokeCircle(x, y, this.activationRadius - 1);
+    plate.lineStyle(1, color, 0.34).strokeCircle(x, y, this.radius + 6);
+    plate.lineStyle(1, color, 0.18).strokeCircle(x, y, this.radius - 7);
+    plate.lineStyle(1, color, 0.28);
+    plate.lineBetween(x - 31, y, x - 22, y);
+    plate.lineBetween(x + 22, y, x + 31, y);
+    plate.lineBetween(x, y - 31, x, y - 22);
+    plate.lineBetween(x, y + 22, x, y + 31);
+    plate.lineStyle(3, color, 0.78);
+    for (let i = 0; i < 8; i++) {
+      const angle = i * Math.PI / 4;
+      plate.beginPath();
+      plate.arc(x, y, this.activationRadius - 7, angle + 0.08, angle + 0.38);
+      plate.strokePath();
+    }
     const text = this.scene.add.text(x, y + 50, label, {
       fontFamily: 'RavenMono, monospace', fontSize: '8px', color: '#d9f7ff',
-    }).setOrigin(0.5).setAlpha(0.75).setScrollFactor(0);
-    return [outer, inner, text];
+      backgroundColor: '#061017', padding: { x: 5, y: 2 },
+    }).setOrigin(0.5).setAlpha(0.92).setScrollFactor(0);
+    return [plate, text];
   }
 
-  private createThumb(x: number, y: number, color: number): Phaser.GameObjects.Arc {
-    return this.scene.add.circle(x, y, 19, color, 0.34)
-      .setStrokeStyle(2, color, 0.82).setScrollFactor(0);
+  private createThumb(x: number, y: number, color: number): Phaser.GameObjects.Container {
+    const glow = this.scene.add.circle(0, 0, 23, color, 0.12);
+    const outer = this.scene.add.circle(0, 0, 18, 0x07131d, 0.92).setStrokeStyle(2, color, 0.95);
+    const core = this.scene.add.circle(0, 0, 12, color, 0.34).setStrokeStyle(1, 0xffffff, 0.36);
+    const detail = this.scene.add.graphics();
+    detail.lineStyle(1, color, 0.78);
+    detail.lineBetween(-7, 0, 7, 0);
+    detail.lineBetween(0, -7, 0, 7);
+    return this.scene.add.container(x, y, [glow, outer, core, detail]).setScrollFactor(0);
+  }
+
+  private createButtonTexture(x: number, y: number, color: number): Phaser.GameObjects.Graphics {
+    const texture = this.scene.add.graphics().setScrollFactor(0);
+    texture.fillStyle(color, 0.09).fillCircle(x, y, 34);
+    texture.lineStyle(1, color, 0.28).strokeCircle(x, y, 34);
+    texture.lineStyle(3, color, 0.82);
+    for (let i = 0; i < 4; i++) {
+      const angle = i * Math.PI / 2;
+      texture.beginPath();
+      texture.arc(x, y, 30, angle + 0.12, angle + 0.58);
+      texture.strokePath();
+    }
+    return texture;
   }
 
   private updateStick(stick: Stick, pointer: Phaser.Input.Pointer): void {

@@ -14,19 +14,53 @@
         font-family: monospace;
         touch-action: none;
         overscroll-behavior: none;
+        width: 100%;
+        height: 100%;
       }
-      canvas { touch-action: none; }
+      canvas { touch-action: none; display: block; }
       #app {
-        width: 100vw;
-        height: 100vh;
+        position: fixed;
+        inset: 0;
+        width: 100dvw;
+        height: 100dvh;
         display: flex;
         justify-content: center;
         align-items: center;
+      }
+      #rotate-device {
+        display: none;
+        position: fixed;
+        inset: 0;
+        z-index: 10000;
+        place-items: center;
+        align-content: center;
+        gap: 16px;
+        color: #d9f7ff;
+        background: radial-gradient(circle at center, #143447 0%, #050b10 72%);
+        text-align: center;
+        letter-spacing: .12em;
+      }
+      #rotate-device strong { font-size: 20px; color: #62e9ff; }
+      #enter-landscape {
+        border: 1px solid #62e9ff;
+        border-radius: 4px;
+        padding: 12px 18px;
+        color: #e8fbff;
+        background: rgba(24, 76, 96, .7);
+        font: 700 14px monospace;
+      }
+      @media (orientation: portrait) and (pointer: coarse) {
+        #rotate-device { display: grid; }
       }
     </style>
   </head>
   <body>
     <div id="app"></div>
+    <div id="rotate-device" role="dialog" aria-label="Landscape mode required">
+      <strong>ROTATE TO LANDSCAPE</strong>
+      <span>RAVEN-07 requires a wide combat view.</span>
+      <button id="enter-landscape" type="button">ENTER FULLSCREEN</button>
+    </div>
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>
