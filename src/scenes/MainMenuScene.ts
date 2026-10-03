@@ -10,6 +10,7 @@ import { gameState } from '../core/GameState';
 import { SaveManager } from '../core/SaveManager';
 import { FONT, TYPE_COLOR } from '../ui/Typography';
 import { levelData } from '../data/levelData';
+import { runtimeViewport } from '../core/RuntimeViewport';
 
 export class MainMenuScene extends Phaser.Scene {
   private selectedIndex: number = 0;
@@ -115,7 +116,10 @@ export class MainMenuScene extends Phaser.Scene {
     });
 
     // Instructions
-    const instructions = this.add.text(width / 2, height - 30, 'Use ARROW KEYS / WASD / MOUSE to navigate. PRESS ENTER or CLICK to select.', {
+    const instructionCopy = runtimeViewport.config.isMobile
+      ? 'TAP an option to select.'
+      : 'Use ARROW KEYS / WASD / MOUSE to navigate. PRESS ENTER or CLICK to select.';
+    const instructions = this.add.text(width / 2, height - 30, instructionCopy, {
       font: `600 12px ${FONT.ui}`,
       color: TYPE_COLOR.muted,
       align: 'center',
@@ -220,7 +224,9 @@ export class MainMenuScene extends Phaser.Scene {
         break;
       }
       case 'HOW TO PLAY':
-        this.showSubmenu('CONTROLS:\n\nA / ← Move Left\nD / → Move Right\nSPACE Jump\nS / ↓ Crouch\nJ Shoot\nK Switch Weapon\nW / ↑ Aim Up\nMouse: Alternate aim/fire\nESC Pause\n\nDEFEAT ALL ENEMIES AND THE BOSS TO WIN!');
+        this.showSubmenu(runtimeViewport.config.isMobile
+          ? 'CONTROLS:\n\nLEFT STICK Move\nRIGHT STICK Aim / Fire\nJUMP Jump\nSWITCH Cycle Weapon\nMENU Pause / Settings\n\nDEFEAT ALL ENEMIES AND THE BOSS TO WIN!'
+          : 'CONTROLS:\n\nA / ← Move Left\nD / → Move Right\nSPACE Jump\nS / ↓ Crouch\nJ Shoot\nK Switch Weapon\nW / ↑ Aim Up\nMouse: Alternate aim/fire\nESC Pause\n\nDEFEAT ALL ENEMIES AND THE BOSS TO WIN!');
         break;
       case 'SETTINGS':
         this.showSettings();
@@ -279,7 +285,7 @@ export class MainMenuScene extends Phaser.Scene {
       `MUTE           [${settings.mute ? 'ON' : 'OFF'}]`,
       `SCREEN SHAKE   [${bar(settings.screenShake)}]`,
       `REDUCE FLASHES [${settings.reduceFlashes ? 'ON' : 'OFF'}]`,
-      `FULLSCREEN     [${this.scale.isFullscreen ? 'ON' : 'OFF'}]`,
+      `FULLSCREEN     [${runtimeViewport.config.fullscreen ? 'ON' : 'OFF'}]`,
       `DIFFICULTY     [${settings.difficulty.toUpperCase()}]`,
       `EFFECTS        [${settings.effectsQuality.toUpperCase()}]`,
       `TUTORIAL HINTS [${settings.tutorialHints ? 'ON' : 'OFF'}]`,
@@ -340,9 +346,9 @@ export class MainMenuScene extends Phaser.Scene {
     } else if (this.settingsIndex === 5) {
       SaveManager.updateSettings({ reduceFlashes: !settings.reduceFlashes });
     } else if (this.settingsIndex === 6) {
-      const next = !this.scale.isFullscreen;
-      if (next) this.scale.startFullscreen();
-      else this.scale.stopFullscreen();
+      const next = !runtimeViewport.config.fullscreen;
+      if (next) void runtimeViewport.enterFullscreen();
+      else void runtimeViewport.exitFullscreen();
       SaveManager.updateSettings({ fullscreen: next });
     } else if (this.settingsIndex === 8) {
       SaveManager.updateSettings({ effectsQuality: settings.effectsQuality === 'low' ? 'high' : 'low' });

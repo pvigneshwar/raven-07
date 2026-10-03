@@ -43,6 +43,9 @@ Left stick moves, right stick aims, A jumps, right trigger fires, Y switches wea
 - Left joystick — Move (pull down to crouch/drop through platforms)
 - Right joystick — Aim and fire
 - Jump button — Jump (hold for a higher jump)
+- Switch button — Cycle through unlocked weapons
+- Menu button — Pause and open touch-accessible settings
+- Portrait mode pauses gameplay until the device returns to landscape
 
 ## Installation
 

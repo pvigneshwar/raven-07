@@ -13,11 +13,12 @@ import { LevelOneScene } from './scenes/LevelOneScene';
 import { GameOverScene } from './scenes/GameOverScene';
 import { VictoryScene } from './scenes/VictoryScene';
 import { GAME_NAME } from './config/gameConfig';
+import { runtimeViewport } from './core/RuntimeViewport';
 
 const config: Phaser.Types.Core.GameConfig = {
   type: Phaser.AUTO,
   title: GAME_NAME,
-  parent: 'app',
+  parent: 'game-viewport',
   // Keep the logical game size separate from backing-store resolution.
   // Mixing 1280x720 here with a 640x360 Scale Manager size made mobile
   // browsers render the canvas at roughly half of the available viewport.
@@ -47,7 +48,7 @@ const config: Phaser.Types.Core.GameConfig = {
   audio: {
     noAudio: false,
   },
-  input: { gamepad: true, activePointers: 4 },
+  input: { gamepad: true, activePointers: 6 },
   scene: [
     BootScene,
     PreloadScene,
@@ -73,6 +74,10 @@ class Game {
   get scale() {
     return this.game.scale;
   }
+
+  get raw() {
+    return this.game;
+  }
 }
 
 // Phaser rasterizes Text objects at creation time, so load the bundled type
@@ -85,26 +90,14 @@ await Promise.all([
   document.fonts.load('700 14px RavenMono'),
 ]);
 
-const isTouchDevice = navigator.maxTouchPoints > 0 || window.matchMedia('(pointer: coarse)').matches;
-const requestMobileLandscape = async (): Promise<void> => {
-  if (!isTouchDevice) return;
-  try {
-    if (!document.fullscreenElement) await document.documentElement.requestFullscreen();
-  } catch { /* Some mobile browsers expose fullscreen only for installed apps. */ }
-  try {
-    const orientation = screen.orientation as ScreenOrientation & { lock?: (value: string) => Promise<void> };
-    await orientation.lock?.('landscape');
-  } catch { /* iOS and embedded browsers may require the user to rotate manually. */ }
-  window.setTimeout(() => game.scale.refresh(), 100);
-};
-
-// Fullscreen and orientation lock require a user gesture. The first touch is
-// the earliest standards-compliant point at which the browser can grant both.
-document.addEventListener('pointerdown', () => { void requestMobileLandscape(); }, { once: true, capture: true });
-document.getElementById('enter-landscape')?.addEventListener('click', () => { void requestMobileLandscape(); });
-
 // Initialize game
 const game = new Game();
+runtimeViewport.attachGame(game.raw);
+if (runtimeViewport.config.isMobile) {
+  document.addEventListener('pointerdown', () => { void runtimeViewport.enterFullscreen(); },
+    { once: true, capture: true });
+}
+document.getElementById('enter-landscape')?.addEventListener('click', () => { void runtimeViewport.enterFullscreen(); });
 
 // Browser automation and development inspection only; production does not
 // publish the live game object (and its scene internals) on window.

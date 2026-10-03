@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
-import type { AimDirection } from '../config/gameConfig';
+import { GAME_CONFIG, type AimDirection } from '../config/gameConfig';
+import { runtimeViewport } from '../core/RuntimeViewport';
 
 export interface TouchControlState {
   moveX: number;
@@ -9,6 +10,8 @@ export interface TouchControlState {
   aiming: boolean;
   jump: boolean;
   jumpHeld: boolean;
+  switchWeapon: boolean;
+  pause: boolean;
 }
 
 type Stick = {
@@ -24,13 +27,32 @@ export class TouchControls {
   private readonly moveStick: Stick;
   private readonly aimStick: Stick;
   private readonly jumpButton: Phaser.GameObjects.Arc;
+  private readonly switchButton: Phaser.GameObjects.Rectangle;
+  private readonly pauseButton: Phaser.GameObjects.Rectangle;
   private readonly radius = 42;
   private readonly activationRadius = 62;
   private jumpPointerId: number | null = null;
   private jumpQueued = false;
+  private switchPointerId: number | null = null;
+  private pausePointerId: number | null = null;
+  private switchQueued = false;
+  private pauseQueued = false;
+  private readonly unsubscribeLayout: () => void;
 
   private readonly onPointerDown = (pointer: Phaser.Input.Pointer): void => {
     if (!this.isTouchPointer(pointer)) return;
+    if (this.switchPointerId === null && this.distanceTo(pointer, this.switchButton.x, this.switchButton.y) <= 30) {
+      this.switchPointerId = pointer.id;
+      this.switchQueued = true;
+      this.switchButton.setScale(0.94).setFillStyle(0x2a6577, 0.94);
+      return;
+    }
+    if (this.pausePointerId === null && this.distanceTo(pointer, this.pauseButton.x, this.pauseButton.y) <= 26) {
+      this.pausePointerId = pointer.id;
+      this.pauseQueued = true;
+      this.pauseButton.setScale(0.94).setFillStyle(0x27404b, 0.94);
+      return;
+    }
     if (this.jumpPointerId === null && this.distanceTo(pointer, this.jumpButton.x, this.jumpButton.y) <= 36) {
       this.jumpPointerId = pointer.id;
       this.jumpQueued = true;
@@ -62,14 +84,21 @@ export class TouchControls {
       this.jumpPointerId = null;
       this.jumpButton.setFillStyle(0xffc857, 0.26).setScale(1);
     }
+    if (pointer.id === this.switchPointerId) {
+      this.switchPointerId = null;
+      this.switchButton.setScale(1).setFillStyle(0x102d38, 0.88);
+    }
+    if (pointer.id === this.pausePointerId) {
+      this.pausePointerId = null;
+      this.pauseButton.setScale(1).setFillStyle(0x10232c, 0.88);
+    }
   };
 
   static shouldEnable(): boolean {
-    return navigator.maxTouchPoints > 0 || window.matchMedia?.('(pointer: coarse)').matches === true;
+    return runtimeViewport.config.isMobile;
   }
 
   constructor(private readonly scene: Phaser.Scene) {
-    scene.input.addPointer(3);
     const moveOrigin = new Phaser.Math.Vector2(72, 286);
     const aimOrigin = new Phaser.Math.Vector2(568, 286);
     const moveBase = this.createStickBase(moveOrigin.x, moveOrigin.y, 0x62e9ff, 'MOVE');
@@ -82,14 +111,36 @@ export class TouchControls {
     const jumpLabel = scene.add.text(500, 213, 'JUMP', {
       fontFamily: 'RavenMono, monospace', fontSize: '9px', color: '#fff1c7',
     }).setOrigin(0.5).setScrollFactor(0);
+    this.switchButton = scene.add.rectangle(582, 72, 76, 30, 0x102d38, 0.88)
+      .setStrokeStyle(2, 0x62e9ff, 0.88).setScrollFactor(0);
+    const switchLabel = scene.add.text(582, 72, '↻ SWITCH', {
+      fontFamily: 'RavenMono, monospace', fontSize: '9px', color: '#d9f7ff',
+    }).setOrigin(0.5).setScrollFactor(0);
+    this.pauseButton = scene.add.rectangle(320, 24, 56, 26, 0x10232c, 0.88)
+      .setStrokeStyle(1, 0x8fb8c4, 0.75).setScrollFactor(0);
+    const pauseLabel = scene.add.text(320, 24, 'Ⅱ MENU', {
+      fontFamily: 'RavenMono, monospace', fontSize: '8px', color: '#e1f4f8',
+    }).setOrigin(0.5).setScrollFactor(0);
     this.root = scene.add.container(0, 0, [
       ...moveBase, ...aimBase, moveThumb, aimThumb, jumpTexture, this.jumpButton, jumpLabel,
+      this.switchButton, switchLabel, this.pauseButton, pauseLabel,
     ]).setDepth(10_000).setScrollFactor(0).setName('touch-controls');
     this.moveStick = { pointerId: null, origin: moveOrigin, value: new Phaser.Math.Vector2(), thumb: moveThumb };
     this.aimStick = { pointerId: null, origin: aimOrigin, value: new Phaser.Math.Vector2(), thumb: aimThumb };
     scene.input.on('pointerdown', this.onPointerDown);
     scene.input.on('pointermove', this.onPointerMove);
     scene.input.on('pointerup', this.onPointerUp);
+    scene.input.on('pointerupoutside', this.onPointerUp);
+    window.addEventListener('blur', this.reset);
+    document.addEventListener('visibilitychange', this.onVisibilityChange);
+    scene.game.canvas.addEventListener('pointerdown', this.capturePointer);
+    scene.game.canvas.addEventListener('pointercancel', this.reset);
+    scene.game.canvas.addEventListener('lostpointercapture', this.reset);
+    scene.game.canvas.addEventListener('contextmenu', this.preventBrowserGesture);
+    this.unsubscribeLayout = runtimeViewport.subscribe((config) => {
+      this.root.setVisible(config.touchControlsEnabled);
+      if (!config.touchControlsEnabled) this.reset();
+    });
     scene.events.once(Phaser.Scenes.Events.SHUTDOWN, () => this.destroy());
   }
 
@@ -104,17 +155,22 @@ export class TouchControls {
       moveY: this.moveStick.value.y,
       aimX: this.aimStick.value.x,
       aimY: this.aimStick.value.y,
-      aiming: this.aimStick.pointerId !== null && this.aimStick.value.length() > 0.18,
+      aiming: this.aimStick.pointerId !== null &&
+        this.aimStick.value.length() > GAME_CONFIG.TOUCH_AIM_DEADZONE,
       jump: this.jumpQueued,
       jumpHeld: this.jumpPointerId !== null,
+      switchWeapon: this.switchQueued,
+      pause: this.pauseQueued,
     };
     this.jumpQueued = false;
+    this.switchQueued = false;
+    this.pauseQueued = false;
     return state;
   }
 
   getAimDirection(fallbackFacing: 'left' | 'right'): AimDirection {
     const length = this.aimStick.value.length();
-    if (length <= 0.18) {
+    if (length <= GAME_CONFIG.TOUCH_AIM_DEADZONE) {
       return { x: fallbackFacing === 'left' ? -1 : 1, y: 0, isUp: false, isDown: false };
     }
     const x = this.aimStick.value.x / length;
@@ -123,7 +179,8 @@ export class TouchControls {
   }
 
   isAiming(): boolean {
-    return this.aimStick.pointerId !== null && this.aimStick.value.length() > 0.18;
+    return this.aimStick.pointerId !== null &&
+      this.aimStick.value.length() > GAME_CONFIG.TOUCH_AIM_DEADZONE;
   }
 
   isJumpHeld(): boolean {
@@ -134,6 +191,14 @@ export class TouchControls {
     this.scene.input.off('pointerdown', this.onPointerDown);
     this.scene.input.off('pointermove', this.onPointerMove);
     this.scene.input.off('pointerup', this.onPointerUp);
+    this.scene.input.off('pointerupoutside', this.onPointerUp);
+    window.removeEventListener('blur', this.reset);
+    document.removeEventListener('visibilitychange', this.onVisibilityChange);
+    this.scene.game.canvas.removeEventListener('pointerdown', this.capturePointer);
+    this.scene.game.canvas.removeEventListener('pointercancel', this.reset);
+    this.scene.game.canvas.removeEventListener('lostpointercapture', this.reset);
+    this.scene.game.canvas.removeEventListener('contextmenu', this.preventBrowserGesture);
+    this.unsubscribeLayout();
     this.root.destroy(true);
   }
 
@@ -208,4 +273,30 @@ export class TouchControls {
   private distanceTo(pointer: Phaser.Input.Pointer, x: number, y: number): number {
     return Phaser.Math.Distance.Between(pointer.x, pointer.y, x, y);
   }
+
+  private readonly onVisibilityChange = (): void => {
+    if (document.hidden) this.reset();
+  };
+
+  private readonly capturePointer = (event: PointerEvent): void => {
+    if (event.pointerType === 'touch') {
+      try { this.scene.game.canvas.setPointerCapture(event.pointerId); } catch { /* Pointer may already be released. */ }
+    }
+  };
+
+  private readonly preventBrowserGesture = (event: Event): void => event.preventDefault();
+
+  private readonly reset = (): void => {
+    this.releaseStick(this.moveStick);
+    this.releaseStick(this.aimStick);
+    this.jumpPointerId = null;
+    this.switchPointerId = null;
+    this.pausePointerId = null;
+    this.jumpQueued = false;
+    this.switchQueued = false;
+    this.pauseQueued = false;
+    this.jumpButton.setFillStyle(0x513f16, 0.72).setScale(1);
+    this.switchButton.setFillStyle(0x102d38, 0.88).setScale(1);
+    this.pauseButton.setFillStyle(0x10232c, 0.88).setScale(1);
+  };
 }

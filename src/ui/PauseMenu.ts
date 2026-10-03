@@ -8,6 +8,7 @@ import { audioManager } from '../systems/AudioManager';
 import { SaveManager } from '../core/SaveManager';
 import { gameState } from '../core/GameState';
 import { FONT } from './Typography';
+import { runtimeViewport } from '../core/RuntimeViewport';
 
 export class PauseMenu {
   private scene: Phaser.Scene;
@@ -74,6 +75,13 @@ export class PauseMenu {
       text.setOrigin(0.5);
       text.setDepth(200);
       text.setScrollFactor(0);
+      text.setInteractive({ useHandCursor: true });
+      text.on('pointerdown', () => {
+        if (!this.isVisible || this.settingsVisible || this.controlsVisible) return;
+        this.currentIndex = index;
+        this.updateSelection();
+        option.action();
+      });
       this.menuItems.push(text);
     });
 
@@ -112,6 +120,7 @@ export class PauseMenu {
     this.overlay.setVisible(true);
     this.titleText.setVisible(true);
     this.menuItems.forEach((item) => item.setVisible(true));
+    (this.scene.children.getByName('touch-controls') as Phaser.GameObjects.Container | null)?.setVisible(false);
     this.currentIndex = 0;
     this.updateSelection();
 
@@ -124,6 +133,8 @@ export class PauseMenu {
     this.overlay.setVisible(false);
     this.titleText.setVisible(false);
     this.menuItems.forEach((item) => item.setVisible(false));
+    (this.scene.children.getByName('touch-controls') as Phaser.GameObjects.Container | null)
+      ?.setVisible(runtimeViewport.config.touchControlsEnabled);
 
     // Resume physics
     this.scene.physics.resume();
@@ -218,6 +229,8 @@ ENTER / ESC to close`,
     this.controlsText.setOrigin(0.5);
     this.controlsText.setDepth(300);
     this.controlsText.setScrollFactor(0);
+    this.controlsText.setInteractive({ useHandCursor: true });
+    this.controlsText.on('pointerdown', () => this.closeControls());
   }
 
   private closeControls(): void {
@@ -275,9 +288,9 @@ ENTER / ESC to close`,
       SaveManager.updateSettings({ reduceFlashes: !settings.reduceFlashes });
       this.renderSettingsText();
     } else if (this.settingsIndex === 6) {
-      const next = !this.scene.scale.isFullscreen;
-      if (next) this.scene.scale.startFullscreen();
-      else this.scene.scale.stopFullscreen();
+      const next = !runtimeViewport.config.fullscreen;
+      if (next) void runtimeViewport.enterFullscreen();
+      else void runtimeViewport.exitFullscreen();
       SaveManager.updateSettings({ fullscreen: next });
       this.renderSettingsText();
     } else if (this.settingsIndex === 8) {
@@ -334,7 +347,7 @@ ENTER / ESC to close`,
       `MUTE           [${settings.mute ? 'ON' : 'OFF'}]`,
       `SCREEN SHAKE   [${bar(settings.screenShake)}]`,
       `REDUCE FLASHES [${settings.reduceFlashes ? 'ON' : 'OFF'}]`,
-      `FULLSCREEN     [${this.scene.scale.isFullscreen ? 'ON' : 'OFF'}]`,
+      `FULLSCREEN     [${runtimeViewport.config.fullscreen ? 'ON' : 'OFF'}]`,
       `DIFFICULTY     [${settings.difficulty.toUpperCase()}]`,
       `EFFECTS        [${settings.effectsQuality.toUpperCase()}]`,
       `TUTORIAL HINTS [${settings.tutorialHints ? 'ON' : 'OFF'}]`,
@@ -342,7 +355,10 @@ ENTER / ESC to close`,
       'BACK',
     ];
     const lines = rows.map((row, i) => (i === this.settingsIndex ? `> ${row}` : `  ${row}`));
-    const text = ['SETTINGS', '', ...lines, '', '\u2190/\u2192 adjust  \u2191/\u2193 select  ENTER confirm  ESC back'].join('\n');
+    const help = runtimeViewport.config.isMobile
+      ? 'TAP row • left/right side adjusts'
+      : '\u2190/\u2192 adjust  \u2191/\u2193 select  ENTER confirm  ESC back';
+    const text = ['SETTINGS', '', ...lines, '', help].join('\n');
 
     if (this.settingsText) {
       this.settingsText.setText(text);
@@ -362,6 +378,22 @@ ENTER / ESC to close`,
       this.settingsText.setOrigin(0.5);
       this.settingsText.setDepth(300);
       this.settingsText.setScrollFactor(0);
+      this.settingsText.setInteractive({ useHandCursor: true });
+      this.settingsText.on('pointerdown', (pointer: Phaser.Input.Pointer) => this.handleSettingsTap(pointer));
+    }
+  }
+
+  private handleSettingsTap(pointer: Phaser.Input.Pointer): void {
+    if (!this.settingsText) return;
+    const bounds = this.settingsText.getBounds();
+    const lineCount = this.settingsText.text.split('\n').length;
+    const row = Math.floor((pointer.y - bounds.top) / (bounds.height / lineCount)) - 2;
+    if (row < 0 || row >= this.settingsFields.length) return;
+    this.settingsIndex = row;
+    if ([0, 1, 2, 4, 7, 8].includes(row)) {
+      this.adjustSetting(pointer.x < this.scene.cameras.main.centerX ? -0.1 : 0.1);
+    } else {
+      this.settingsConfirm();
     }
   }
 

@@ -6,7 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
     <title>RAVEN-07: SHADOW STRIKE</title>
     <style>
-      html, body {
+      html, body, #game-shell {
         margin: 0;
         padding: 0;
         overflow: hidden;
@@ -16,20 +16,37 @@
         overscroll-behavior: none;
         width: 100%;
         height: 100%;
+        user-select: none;
+        -webkit-user-select: none;
+        -webkit-touch-callout: none;
       }
-      canvas { touch-action: none; display: block; }
-      #app {
+      canvas { position: absolute; inset: 0; width: 100%; height: 100%; touch-action: none; display: block; }
+      #game-shell {
         position: fixed;
         inset: 0;
+        box-sizing: border-box;
         width: 100dvw;
         height: 100dvh;
         display: flex;
         justify-content: center;
         align-items: center;
+        overflow: hidden;
+        background: #000;
+        touch-action: none;
+        padding: env(safe-area-inset-top) env(safe-area-inset-right)
+          env(safe-area-inset-bottom) env(safe-area-inset-left);
+      }
+      #game-viewport {
+        position: relative;
+        width: min(100%, calc(100dvh * 16 / 9));
+        height: min(100%, calc(100dvw * 9 / 16));
+        max-width: 100%;
+        max-height: 100%;
+        overflow: hidden;
       }
       #rotate-device {
         display: none;
-        position: fixed;
+        position: absolute;
         inset: 0;
         z-index: 10000;
         place-items: center;
@@ -49,17 +66,18 @@
         background: rgba(24, 76, 96, .7);
         font: 700 14px monospace;
       }
-      @media (orientation: portrait) and (pointer: coarse) {
-        #rotate-device { display: grid; }
-      }
+      .mobile-portrait #rotate-device { display: grid; }
     </style>
   </head>
   <body>
-    <div id="app"></div>
-    <div id="rotate-device" role="dialog" aria-label="Landscape mode required">
-      <strong>ROTATE TO LANDSCAPE</strong>
-      <span>RAVEN-07 requires a wide combat view.</span>
-      <button id="enter-landscape" type="button">ENTER FULLSCREEN</button>
+    <div id="game-shell">
+      <div id="game-viewport">
+        <div id="rotate-device" role="dialog" aria-label="Landscape mode required">
+          <strong>ROTATE YOUR DEVICE</strong>
+          <span>This game is designed for landscape mode.</span>
+          <button id="enter-landscape" type="button">ENTER FULLSCREEN</button>
+        </div>
+      </div>
     </div>
     <script type="module" src="/src/main.ts"></script>
   </body>

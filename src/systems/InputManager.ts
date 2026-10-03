@@ -3,7 +3,7 @@
  * Manages keyboard and mouse input, producing a unified input state.
  */
 
-import type { AimDirection } from '../config/gameConfig';
+import { GAME_CONFIG, type AimDirection } from '../config/gameConfig';
 import { TouchControls, type TouchControlState } from './TouchControls';
 
 export interface InputState {
@@ -38,6 +38,7 @@ export class InputManager {
   private touchControls: TouchControls | null = null;
   private touchState: TouchControlState = {
     moveX: 0, moveY: 0, aimX: 0, aimY: 0, aiming: false, jump: false, jumpHeld: false,
+    switchWeapon: false, pause: false,
   };
   private readonly onPointerMove = (pointer: Phaser.Input.Pointer): void => {
     this.mouseX = pointer.x;
@@ -125,6 +126,7 @@ export class InputManager {
   getInputState(): InputState {
     this.touchState = this.touchControls?.getState() ?? {
       moveX: 0, moveY: 0, aimX: 0, aimY: 0, aiming: false, jump: false, jumpHeld: false,
+      switchWeapon: false, pause: false,
     };
     const isJustPressedJump = this.isJustPressed('SPACE');
     const pad = this.getPad();
@@ -136,8 +138,10 @@ export class InputManager {
     const padPause = !!pad?.buttons[9]?.pressed;
 
     // Determine direction
-    const left = this.cursors.left.isDown || this.isDown('A') || axisX < 0 || this.touchState.moveX < -0.28;
-    const right = this.cursors.right.isDown || this.isDown('D') || axisX > 0 || this.touchState.moveX > 0.28;
+    const left = this.cursors.left.isDown || this.isDown('A') || axisX < 0 ||
+      this.touchState.moveX < -GAME_CONFIG.TOUCH_MOVE_DEADZONE;
+    const right = this.cursors.right.isDown || this.isDown('D') || axisX > 0 ||
+      this.touchState.moveX > GAME_CONFIG.TOUCH_MOVE_DEADZONE;
 
     if (left && !right) {
       this.facing = 'left';
@@ -150,8 +154,9 @@ export class InputManager {
 
     const jump = isJustPressedJump || (padJump && !this.previousPadJump) || this.touchState.jump;
     const shoot = this.isDown('J') || this.mouseDown || !!pad?.buttons[7]?.pressed || this.touchState.aiming;
-    const switchWeapon = this.isJustPressed('K') || (padSwitch && !this.previousPadSwitch);
-    const pause = this.isJustPressed('ESC') || (padPause && !this.previousPadPause);
+    const switchWeapon = this.isJustPressed('K') || (padSwitch && !this.previousPadSwitch) ||
+      this.touchState.switchWeapon;
+    const pause = this.isJustPressed('ESC') || (padPause && !this.previousPadPause) || this.touchState.pause;
     this.previousPadJump = padJump;
     this.previousPadSwitch = padSwitch;
     this.previousPadPause = padPause;
