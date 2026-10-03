@@ -43,7 +43,7 @@ const config: Phaser.Types.Core.GameConfig = {
   audio: {
     noAudio: false,
   },
-  input: { gamepad: true },
+  input: { gamepad: true, activePointers: 4 },
   scene: [
     BootScene,
     PreloadScene,

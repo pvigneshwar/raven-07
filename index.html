@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
     <title>RAVEN-07: SHADOW STRIKE</title>
     <style>
       html, body {
@@ -12,7 +12,10 @@
         overflow: hidden;
         background: #000;
         font-family: monospace;
+        touch-action: none;
+        overscroll-behavior: none;
       }
+      canvas { touch-action: none; }
       #app {
         width: 100vw;
         height: 100vh;

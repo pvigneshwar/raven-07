@@ -4,6 +4,7 @@
  */
 
 import type { AimDirection } from '../config/gameConfig';
+import { TouchControls, type TouchControlState } from './TouchControls';
 
 export interface InputState {
   left: boolean;
@@ -34,11 +35,16 @@ export class InputManager {
   private previousPadSwitch = false;
   private previousPadPause = false;
   private rightStick = { x: 0, y: 0 };
+  private touchControls: TouchControls | null = null;
+  private touchState: TouchControlState = {
+    moveX: 0, moveY: 0, aimX: 0, aimY: 0, aiming: false, jump: false, jumpHeld: false,
+  };
   private readonly onPointerMove = (pointer: Phaser.Input.Pointer): void => {
     this.mouseX = pointer.x;
     this.mouseY = pointer.y;
   };
   private readonly onPointerDown = (pointer: Phaser.Input.Pointer): void => {
+    if (this.touchControls?.isTouchPointer(pointer)) return;
     this.mouseX = pointer.x;
     this.mouseY = pointer.y;
     this.mouseDown = true;
@@ -70,6 +76,7 @@ export class InputManager {
     scene.input.on('pointermove', this.onPointerMove);
     scene.input.on('pointerdown', this.onPointerDown);
     scene.input.on('pointerup', this.onPointerUp);
+    if (TouchControls.shouldEnable()) this.touchControls = new TouchControls(scene);
     scene.events.once(Phaser.Scenes.Events.SHUTDOWN, () => this.destroy());
   }
 
@@ -110,11 +117,15 @@ export class InputManager {
 
   isJumpHeld(): boolean {
     const pad = this.getPad();
-    return this.isDown('SPACE') || this.cursors.up.isDown || !!pad?.buttons[0]?.pressed;
+    return this.isDown('SPACE') || this.cursors.up.isDown || !!pad?.buttons[0]?.pressed ||
+      this.touchControls?.isJumpHeld() === true;
   }
 
   /** Get the current input state */
   getInputState(): InputState {
+    this.touchState = this.touchControls?.getState() ?? {
+      moveX: 0, moveY: 0, aimX: 0, aimY: 0, aiming: false, jump: false, jumpHeld: false,
+    };
     const isJustPressedJump = this.isJustPressed('SPACE');
     const pad = this.getPad();
     const axisX = pad && Math.abs(pad.axes[0]?.getValue() ?? 0) > 0.25 ? pad.axes[0].getValue() : 0;
@@ -125,8 +136,8 @@ export class InputManager {
     const padPause = !!pad?.buttons[9]?.pressed;
 
     // Determine direction
-    const left = this.cursors.left.isDown || this.isDown('A') || axisX < 0;
-    const right = this.cursors.right.isDown || this.isDown('D') || axisX > 0;
+    const left = this.cursors.left.isDown || this.isDown('A') || axisX < 0 || this.touchState.moveX < -0.28;
+    const right = this.cursors.right.isDown || this.isDown('D') || axisX > 0 || this.touchState.moveX > 0.28;
 
     if (left && !right) {
       this.facing = 'left';
@@ -135,10 +146,10 @@ export class InputManager {
     }
 
     const up = this.cursors.up.isDown || this.isDown('W') || axisY < 0;
-    const down = this.cursors.down.isDown || this.isDown('S') || axisY > 0;
+    const down = this.cursors.down.isDown || this.isDown('S') || axisY > 0 || this.touchState.moveY > 0.5;
 
-    const jump = isJustPressedJump || (padJump && !this.previousPadJump);
-    const shoot = this.isDown('J') || this.mouseDown || !!pad?.buttons[7]?.pressed;
+    const jump = isJustPressedJump || (padJump && !this.previousPadJump) || this.touchState.jump;
+    const shoot = this.isDown('J') || this.mouseDown || !!pad?.buttons[7]?.pressed || this.touchState.aiming;
     const switchWeapon = this.isJustPressed('K') || (padSwitch && !this.previousPadSwitch);
     const pause = this.isJustPressed('ESC') || (padPause && !this.previousPadPause);
     this.previousPadJump = padJump;
@@ -193,6 +204,8 @@ export class InputManager {
       };
     }
 
+    if (this.touchControls?.isAiming()) return this.touchControls.getAimDirection(input.facing);
+
     const stickLength = Math.hypot(this.rightStick.x, this.rightStick.y);
     if (stickLength > 0.3) {
       const x = this.rightStick.x / stickLength;
@@ -218,7 +231,8 @@ export class InputManager {
   }
 
   getShootInput(): boolean {
-    return this.isDown('J') || this.mouseDown || !!this.getPad()?.buttons[7]?.pressed;
+    return this.isDown('J') || this.mouseDown || !!this.getPad()?.buttons[7]?.pressed ||
+      this.touchControls?.isAiming() === true;
   }
 
   getJumpInput(): boolean {

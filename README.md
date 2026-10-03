@@ -38,6 +38,12 @@ Left stick moves, right stick aims, A jumps, right trigger fires, Y switches wea
 ### Mouse
 - Left Mouse Button — Shoot in the mouse direction
 
+### Mobile
+
+- Left joystick — Move (pull down to crouch/drop through platforms)
+- Right joystick — Aim and fire
+- Jump button — Jump (hold for a higher jump)
+
 ## Installation
 
 ```bash
