@@ -134,8 +134,6 @@ export class TouchControls {
     window.addEventListener('blur', this.reset);
     document.addEventListener('visibilitychange', this.onVisibilityChange);
     scene.game.canvas.addEventListener('pointerdown', this.capturePointer);
-    scene.game.canvas.addEventListener('pointercancel', this.reset);
-    scene.game.canvas.addEventListener('lostpointercapture', this.reset);
     scene.game.canvas.addEventListener('contextmenu', this.preventBrowserGesture);
     this.unsubscribeLayout = runtimeViewport.subscribe((config) => {
       this.root.setVisible(config.touchControlsEnabled);
@@ -195,8 +193,6 @@ export class TouchControls {
     window.removeEventListener('blur', this.reset);
     document.removeEventListener('visibilitychange', this.onVisibilityChange);
     this.scene.game.canvas.removeEventListener('pointerdown', this.capturePointer);
-    this.scene.game.canvas.removeEventListener('pointercancel', this.reset);
-    this.scene.game.canvas.removeEventListener('lostpointercapture', this.reset);
     this.scene.game.canvas.removeEventListener('contextmenu', this.preventBrowserGesture);
     this.unsubscribeLayout();
     this.root.destroy(true);

@@ -180,3 +180,115 @@ test('portrait overlay pauses layout and rotation preserves the active scene', a
     return scene.viewportMarker;
   })).toBe('preserved');
 });
+
+test('real two-finger run and jump keeps both actions active', async ({ page }) => {
+  await page.goto('/');
+  await page.waitForSelector('canvas');
+  await expect.poll(async () => page.evaluate(() => {
+    const game = (window as unknown as { raven07?: { scene: Phaser.Scenes.SceneManager } }).raven07;
+    return game?.scene.isActive('MainMenuScene') === true;
+  })).toBe(true);
+  await page.keyboard.press('Enter');
+  await expect.poll(async () => page.evaluate(() => {
+    const game = (window as unknown as { raven07?: { scene: Phaser.Scenes.SceneManager } }).raven07;
+    return game?.scene.isActive('LevelOneScene') === true;
+  })).toBe(true);
+  await page.waitForTimeout(2500);
+
+  const canvas = await page.locator('canvas').boundingBox();
+  const point = (x: number, y: number, id: number) => ({
+    x: canvas!.x + x / 640 * canvas!.width,
+    y: canvas!.y + y / 360 * canvas!.height,
+    id,
+  });
+  const client = await page.context().newCDPSession(page);
+  const moveCenter = point(72, 286, 1);
+  const moveRight = point(112, 286, 1);
+  const jump = point(500, 213, 2);
+
+  await client.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [moveCenter] });
+  await client.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [moveRight] });
+  await client.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [moveRight, jump] });
+
+  await expect.poll(async () => page.evaluate(() => {
+    const game = (window as unknown as { raven07: { scene: Phaser.Scenes.SceneManager } }).raven07;
+    const scene = game.scene.getScene('LevelOneScene') as Phaser.Scene & {
+      player: Phaser.Physics.Arcade.Sprite;
+      inputManager: { touchControls: { moveStick: { pointerId: number | null }; jumpPointerId: number | null } };
+    };
+    const body = scene.player.body as Phaser.Physics.Arcade.Body;
+    return {
+      moving: scene.inputManager.touchControls.moveStick.pointerId !== null && body.velocity.x > 0,
+      jumped: scene.inputManager.touchControls.jumpPointerId !== null && body.velocity.y < 0,
+    };
+  })).toEqual({ moving: true, jumped: true });
+
+  await client.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [jump] });
+  await expect.poll(async () => page.evaluate(() => {
+    const game = (window as unknown as { raven07: { scene: Phaser.Scenes.SceneManager } }).raven07;
+    const scene = game.scene.getScene('LevelOneScene') as Phaser.Scene & {
+      inputManager: { touchControls: {
+        moveStick: { pointerId: number | null };
+        jumpPointerId: number | null;
+      } };
+    };
+    return {
+      moving: scene.inputManager.touchControls.moveStick.pointerId !== null,
+      jumping: scene.inputManager.touchControls.jumpPointerId !== null,
+    };
+  })).toEqual({ moving: true, jumping: false });
+
+  await client.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [moveRight] });
+});
+
+test('pause settings are reachable and tappable on mobile', async ({ page }) => {
+  await page.goto('/');
+  await page.waitForSelector('canvas');
+  await expect.poll(async () => page.evaluate(() => {
+    const game = (window as unknown as { raven07?: { scene: Phaser.Scenes.SceneManager } }).raven07;
+    return game?.scene.isActive('MainMenuScene') === true;
+  })).toBe(true);
+  await page.keyboard.press('Enter');
+  await expect.poll(async () => page.evaluate(() => {
+    const game = (window as unknown as { raven07?: { scene: Phaser.Scenes.SceneManager } }).raven07;
+    return game?.scene.isActive('LevelOneScene') === true;
+  })).toBe(true);
+
+  const canvas = await page.locator('canvas').boundingBox();
+  const tapGame = async (x: number, y: number) => page.touchscreen.tap(
+    canvas!.x + x / 640 * canvas!.width,
+    canvas!.y + y / 360 * canvas!.height,
+  );
+  await tapGame(320, 24);
+  await expect.poll(async () => page.evaluate(() => {
+    const game = (window as unknown as { raven07: { scene: Phaser.Scenes.SceneManager } }).raven07;
+    const scene = game.scene.getScene('LevelOneScene') as Phaser.Scene & { pauseMenu: { isVisible: boolean } };
+    return scene.pauseMenu.isVisible;
+  })).toBe(true);
+
+  await tapGame(320, 300);
+  await expect.poll(async () => page.evaluate(() => {
+    const game = (window as unknown as { raven07: { scene: Phaser.Scenes.SceneManager } }).raven07;
+    const scene = game.scene.getScene('LevelOneScene') as Phaser.Scene & {
+      pauseMenu: { settingsVisible: boolean; settingsText: Phaser.GameObjects.Text };
+    };
+    return scene.pauseMenu.settingsVisible && scene.pauseMenu.settingsText.visible;
+  })).toBe(true);
+
+  const rowPoint = await page.evaluate(() => {
+    const game = (window as unknown as { raven07: { scene: Phaser.Scenes.SceneManager } }).raven07;
+    const scene = game.scene.getScene('LevelOneScene') as Phaser.Scene & {
+      pauseMenu: { settingsText: Phaser.GameObjects.Text };
+    };
+    const text = scene.pauseMenu.settingsText;
+    const bounds = text.getBounds();
+    const lineHeight = bounds.height / text.text.split('\n').length;
+    return { x: scene.cameras.main.centerX, y: bounds.top + lineHeight * 7.5 };
+  });
+  await tapGame(rowPoint.x, rowPoint.y);
+  expect(await page.evaluate(() => {
+    const game = (window as unknown as { raven07: { scene: Phaser.Scenes.SceneManager } }).raven07;
+    const scene = game.scene.getScene('LevelOneScene') as Phaser.Scene & { pauseMenu: { settingsIndex: number } };
+    return scene.pauseMenu.settingsIndex;
+  })).toBe(5);
+});
